@@ -1,6 +1,6 @@
-# lgtm-ql README
+# vscode-lgtm-ql README
 
-This is the README for your extension "lgtm-ql". After writing up a brief description, we recommend including the following sections.
+This is the README for your extension "vscode-lgtm-ql". After writing up a brief description, we recommend including the following sections.
 
 ## Features
 

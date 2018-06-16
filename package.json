@@ -1,6 +1,6 @@
 {
-    "name": "lgtm-ql",
-    "displayName": "lgtm.com QL",
+    "name": "vscode-lgtm-ql",
+    "displayName": "lgtm.com Semmle QL",
     "description": "Run QL queries on lgtm.com from Visual Studio Code",
     "version": "0.0.1",
     "publisher": "Acuarica",
