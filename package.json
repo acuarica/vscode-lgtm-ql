@@ -16,7 +16,8 @@
         "Programming Languages"
     ],
     "activationEvents": [
-        "onCommand:extension.runQLQuery"
+        "onCommand:extension.runQLQuery",
+        "onCommand:extension.registerLgtm"
     ],
     "main": "./out/extension",
     "contributes": {
@@ -24,7 +25,8 @@
             {
                 "id": "ql",
                 "aliases": [
-                    "QL"
+                    "QL",
+                    "Semmle QL"
                 ],
                 "extensions": [
                     ".ql"
@@ -32,10 +34,21 @@
                 "configuration": "./language-configuration.json"
             }
         ],
+        "grammars": [
+            {
+                "language": "ql",
+                "scopeName": "source.ql",
+                "path": "./syntaxes/ql.tmLanguage.json"
+            }
+        ],
         "commands": [
             {
                 "command": "extension.runQLQuery",
                 "title": "Run QL Query"
+            },
+            {
+                "command": "extension.registerLgtm",
+                "title": "Register into lgtm.com"
             }
         ]
     },

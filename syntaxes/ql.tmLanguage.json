@@ -1,0 +1,57 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "ql",
+	"patterns": [
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#comment"
+		}
+	],
+	"repository": {
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword.control.ql",
+					"match": "\\b(import|predicate|result|class|extends|this|super|override|abstract|from|where|select|as|order|by|and|or|not|implies|if|then|else|exists|forall|forex|instanceof|true|false)\\b"
+				}
+			]
+		},
+		"strings": {
+			"name": "string.quoted.double.ql",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.ql",
+					"match": "\\\\."
+				}
+			]
+		},
+		"comment": {
+			"name": "comment.sqf",
+			"patterns": [
+				{
+					"include": "#comment-block"
+				},
+				{
+					"include": "#comment-line"
+				}
+			]
+		},
+		"comment-block": {
+			"begin": "/\\*",
+			"end": "\\*/",
+			"name": "comment.block.sqf"
+		},
+		"comment-line": {
+			"match": "(//).*$\\n?",
+			"name": "comment.line.sqf"
+		}
+	},
+	"scopeName": "source.ql"
+}
