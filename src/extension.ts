@@ -1,15 +1,12 @@
 'use strict';
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
+
 import * as vscode from 'vscode';
 import { StatusBarItem, window, StatusBarAlignment } from 'vscode';
 
-import request = require('request');
+import requestBase = require('request');
+const request = requestBase.defaults({ jar: true });
 
-// this method is called when your extension is activated
-// your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-
     console.log('Extension "lgtm-ql" is active');
 
     let runQuery = new RunQuery();
@@ -21,6 +18,9 @@ export function activate(context: vscode.ExtensionContext) {
     let runDisp = vscode.commands.registerCommand('extension.runQLQuery', () => {
         vscode.window.showInformationMessage('Hello World from Run QL!');
         runQuery.run();
+        var w = window.createWebviewPanel("markdown", "Hola que tal", {viewColumn: vscode.ViewColumn.Two});
+        w.webview.html = "<h1>Hola</h1><p>asdf</p>";
+        w.reveal();
     });
 
     let registerDisp = vscode.commands.registerCommand('extension.registerLgtm', () => {
@@ -43,6 +43,7 @@ class RunQuery {
 
     public nonce: string = "";
     public apiVersion: string = "";
+    // public jar: string[] = [];
 
     public isRegistered(): boolean {
         return this.nonce !== "" && this.apiVersion !== "";
@@ -71,13 +72,16 @@ class RunQuery {
         }
     }
     private _sendQuery(doc: vscode.TextDocument): number {
-        let content = doc.getText();
+        if (!this.isRegistered()) {
+            vscode.window.showErrorMessage("Not registered to run queries. Run register lgtm.com");
+            return -1;
+        }
 
+        let content = doc.getText();
         var projectKeys = "[39700035]";
 
         const r = request.post(
             "https://lgtm.com/internal_api/v0.2/runQuery", {
-                jar: true,
                 form: {
                     lang: "java",
                     projectKeys: projectKeys,
@@ -116,7 +120,14 @@ class RegisterLgtm {
             console.log('response:', response);
             console.log('error:', error);
             console.log('statusCode:', response && response.statusCode);
-            console.log('body:', body);
+
+            // const jar = response.headers["set-cookie"];
+            // if (jar === undefined) {
+            //     return;
+            // }
+
+            // runQuery.jar = jar;
+            // console.log('set-cookie:', runQuery.jar);
 
             runQuery.nonce = extractValue(body, "nonce: \"(\\w+)\"");
             console.log('nonce:', runQuery.nonce);

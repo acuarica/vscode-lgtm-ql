@@ -1,0 +1,28 @@
+
+GET https://lgtm.com/query HTTP/1.1
+
+###
+
+POST https://lgtm.com/internal_api/v0.2/runQuery HTTP/1.1
+
+{
+    "lang": "java",
+    "projectKeys": "[1878170062]",
+    "queryString": "import java\nfrom CastExpr ce select ce",
+    "guessedLocation": "",
+    "nonce": "20d681c0fa69971225ac93b5977f917f90522070288a329281a8a1e514d4f81abdb39419acd338eb3782b2bd8fb0e698dbb37a3b66714c1d78e0bae1669ab235",
+    "apiVersion2": "9e568c0146738c41f24c795d2e65af6a00b93573"
+}
+
+###
+
+curl 'https://lgtm.com/internal_api/v0.2/runQuery' \
+-XPOST \
+-H 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8' \
+-H 'Origin: https://lgtm.com' \
+-H 'Accept: */*' \
+-H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/11.1.1 Safari/605.1.15' \
+-H 'Referer: https://lgtm.com/query/projects:39700035/lang:java/' \
+-H 'X-Requested-With: XMLHttpRequest' \
+-H 'Cookie: lgtm_long_session=beb1efef07497b6f0e04b86ecc3af5aca957487080a943ec06319257c09d81329d6e6e3255872df5510f1a0c7b50f701cfaf041029f11e736b3ea36a23af9ce0; lgtm_short_session=d3f9a14c8c7ca6e39bf689c6b01caac1e923787ab4ef8970d9949c26b9d7ae08e51dd293d67196c3a775dfa9b3b35f7bd6af83ae88eaca294e5bf3be89f28794' \
+--data 'lang=java&projectKeys=%5B39700035%5D&queryString=import+java%0A%0Aselect+%22hello+world%22&guessedLocation=&nonce=54175e93002c2a4605d65976747fe4a6bd619fcbfb238fe2d69aecacaf6c0ea78e9ea1e21fadbbdd5d83c966612efd7c2a61219ad0c1e1de9fa1ff7a78942e61&apiVersion=9e568c0146738c41f24c795d2e65af6a00b93573'
