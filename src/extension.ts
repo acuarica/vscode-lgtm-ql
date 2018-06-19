@@ -96,69 +96,85 @@ class RunQueryCommand {
             w.webview.html = html + body;
             w.reveal();
 
-            var prevTotal = { value: 0 };
+            let wait1 = async () => await new Promise((resolve) => { setTimeout(() => { resolve(); }, 1000); });
+            let wait2 = async () => await new Promise((resolve) => { setTimeout(() => { resolve(); }, 2000); });
+            let wait3 = async () => await new Promise((resolve) => { setTimeout(() => { resolve(); }, 3000); });
 
-            window.withProgress({
-                location: vscode.ProgressLocation.Notification,
-                title: "Running Query ...",
-                cancellable: true
-            }, (progress, token) => {
-                return new Promise((resolve, reject) => {
-                    var keys: any = {};
-                    resp.data.runs.forEach((element: any) => {
-                        keys[element.key] = {
-                            progress: 0,
-                            projectKey: element.projectKey
-                        };
+            var queryRunKeys: any = {};
+            var i = 0;
+            resp.data.runs.forEach((element: any) => {
+                const key = element.key;
+                i++;
+                queryRunKeys[key] = {
+                    projectKey: element.projectKey,
+                    done: false,
+                    progress: 0,
+                    timeout: 3000 * i
+                };
+
+                setTimeout(async () => {
+
+                    await window.withProgress({
+                        location: vscode.ProgressLocation.Notification,
+                        title: "Running Query ..."//,
+                        // cancellable: true
+                    }, async progress => {
+                        await wait1();
+                        progress.report({ increment: 10 });
+                        progress.report({ message: key });
+                        await new Promise((resolve) => { setTimeout(() => { resolve(); }, queryRunKeys[key].timeout); });
+                        // for (let i = 0; i < 10; ++i) {
+                        //     progress.report({ increment: 10 });
+                        //     await wait2();
+                        // }
                     });
-                    var timer = setInterval(() => {
-                        var queryRunKeys = "[" + Object.keys(keys).join(",") + "]";
-                        console.log("Query run keys: " + queryRunKeys);
-                        this.lgtm.getCustomQueryRunProgress(queryRunKeys, (error, response, body) => {
-                            var resp = JSON.parse(body);
-                            var message = "Running Queries ...\n\n";
-                            var total = 0;
-                            for (var k in resp.data) {
-                                var entry = resp.data[k];
-                                console.log(entry);
-                                message += `Project ${keys[k].projectKey} (#${k}) `;
-                                if (entry.done === true) {
-                                    console.log("Query done: " + k);
-                                    delete keys[k];
-                                    total += 100;
-                                    message += "✓\n";
-                                } else {
-                                    total += entry.progress;
-                                    message += `[${entry.progress}%]\n`;
-                                    console.log(`Key progress ${keys[k].projectKey} (#${k}): ${entry.done}/${entry.progress}/${keys[k].total}%`);
-                                }
-                            }
-                            console.log("Keys remaining: " + Object.keys(keys).length);
-                            if (Object.keys(keys).length === 0) {
-                                console.log("All queries done");
-                                clearInterval(timer);
-                                resolve();
-                            } else {
-                                var inc = (total / Object.keys(resp.data).length) - prevTotal.value;
-                                prevTotal.value += inc;
-                                progress.report({
-                                    message: message,
-                                    increment: inc
-                                });
-                            }
-                        });
-                    }, 2000);
 
-                });
+                }, 500);
+
             });
+
+            // this.getProgress(queryRunKeys, (message) => {
+            // }, () => {
+            // resolve();
+            // });
 
             workspace.openTextDocument({ language: "json", content: body }).then(document => {
                 window.showTextDocument(document, { viewColumn: vscode.ViewColumn.Two }).
                     then(document => {
-
                     });
             });
         });
+    }
+
+    public getProgress(queryRunKeys: any, showProgress: (message: string) => void, done: () => void) {
+        var timer = setInterval(() => {
+            var qs = "[" + Object.keys(queryRunKeys).join(",") + "]";
+            console.log("Query run keys: " + qs);
+            this.lgtm.getCustomQueryRunProgress(qs, (error, response, body) => {
+                var progressResponse: { data: any } = JSON.parse(body);
+                var allDone = true;
+                var message = "";
+                for (var key in progressResponse.data) {
+                    var entry: { done: boolean, progress: number } = progressResponse.data[key];
+                    console.log(entry);
+                    if (entry.done === false) {
+                        allDone = false;
+                    }
+                    queryRunKeys[key].done = entry.done;
+                    queryRunKeys[key].progress = entry.progress;
+                    // progress.report({ message: `Project ${queryRunKeys[key].projectKey} ${queryRunKeys[key].progress}%` });
+                    message += entry.progress + "<b>asdf</b>\n\n";
+                }
+                console.log(`All done: ${allDone}`);
+                if (allDone) {
+                    console.log("All queries done");
+                    clearInterval(timer);
+                    done();
+                } else {
+                    showProgress(message);
+                }
+            });
+        }, 2000);
     }
 
     public display() {
