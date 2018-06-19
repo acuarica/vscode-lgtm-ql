@@ -44,7 +44,7 @@
         "commands": [
             {
                 "command": "extension.runQLQuery",
-                "title": "Run QL Query"
+                "title": "Run QL Query on lgtm.com"
             },
             {
                 "command": "extension.registerLgtm",
