@@ -14,8 +14,80 @@ export function activate(context: vscode.ExtensionContext) {
     // The command has been defined in the package.json file
     // Now provide the implementation of the command with  registerCommand
     // The commandId parameter must match the command field in package.json
-    let runDisp = vscode.commands.registerCommand('extension.runQLQuery', () => {
-        runQueryCommand.run();
+    let runDisp = vscode.commands.registerCommand('extension.runQLQuery', async () => {
+
+
+        let wait1 = async () => await new Promise((resolve) => { setTimeout(() => { resolve(); }, 3000); });
+        let wait2 = async () => await new Promise((resolve) => { setTimeout(() => { resolve(); }, 1000); });
+
+        await vscode.window.withProgress(
+            {
+                location: vscode.ProgressLocation.Notification,
+                title: "Test 1: report only increment"
+            },
+            async (progress) => {
+                await wait1();
+                for (let i = 0; i < 10; ++i) {
+                    progress.report({ increment: 1 });
+                    await wait2();
+                }
+            });
+
+        await vscode.window.withProgress(
+            {
+                location: vscode.ProgressLocation.Notification,
+                title: "Test 2: report only message"
+            },
+            async (progress) => {
+                await wait1();
+                for (let i = 0; i < 15; ++i) {
+                    progress.report({ message: `message ${i}` });
+                    await wait2();
+                }
+            });
+
+        await vscode.window.withProgress(
+            {
+                location: vscode.ProgressLocation.Notification,
+                title: "Test 3: report message and increment, together"
+            },
+            async (progress) => {
+                await wait1();
+                for (let i = 0; i < 20; ++i) {
+                    progress.report({ increment: 5, message: `message ${i}` });
+                    await wait2();
+                }
+            });
+
+        await vscode.window.withProgress(
+            {
+                location: vscode.ProgressLocation.Notification,
+                title: "Test 4: report increment then message"
+            },
+            async (progress) => {
+                await wait1();
+                for (let i = 0; i < 25; ++i) {
+                    progress.report({ increment: 10 });
+                    progress.report({ message: `message ${i}` });
+                    await wait2();
+                }
+            });
+
+        await vscode.window.withProgress(
+            {
+                location: vscode.ProgressLocation.Notification,
+                title: "Test 5: report message then increment"
+            },
+            async (progress) => {
+                await wait1();
+                for (let i = 0; i < 30; ++i) {
+                    progress.report({ message: `message ${i}` });
+                    progress.report({ increment: 15 });
+                    await wait2();
+                }
+            });
+
+        // runQueryCommand.run();
     });
 
     context.subscriptions.push(runQueryCommand);
