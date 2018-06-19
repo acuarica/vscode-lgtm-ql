@@ -13,7 +13,7 @@ export class LgtmService {
             && this.apiVersion !== null && this.apiVersion !== "";
     }
 
-    public init(callback: (lgtm: LgtmService) => void) {
+    public init(callback: () => void) {
         const extractValue = (body: string, regex: string) => {
             const m = body.match(regex);
             if (m === null) {
@@ -34,7 +34,7 @@ export class LgtmService {
             this.apiVersion = extractValue(body, "<div id=\"preloaded_content\" data-api-version=(\\w+)>");
             console.log('apiVersion:', this.apiVersion);
 
-            callback(this);
+            callback();
         });
     }
 
