@@ -1,43 +1,49 @@
 'use strict';
 
 import * as vscode from 'vscode';
-import { StatusBarItem, window, StatusBarAlignment, workspace } from 'vscode';
-import { LgtmService } from './lgtm';
-import { Response } from 'request';
+import { StatusBarItem, window, StatusBarAlignment } from 'vscode';
+import { LgtmService, QueryRunProgressKeys } from './lgtm';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Extension "vscode-lgtm-ql" is active');
 
     let lgtm = new LgtmService();
-    let runQueryCommand = new RunQueryCommand(lgtm);
+    let commands = new LgtmCommands(lgtm);
 
     // The command has been defined in the package.json file
-    // Now provide the implementation of the command with  registerCommand
+    // Now provide the implementation of the command with registerCommand
     // The commandId parameter must match the command field in package.json
-    let runDisp = vscode.commands.registerCommand('extension.runQLQuery', async () => {
+    context.subscriptions.push(vscode.commands.registerCommand('extension.runQLQuery', () => {
+        commands.runQLQuery();
+    }));
 
-        vscode.commands.executeCommand('vscode.open', vscode.Uri.parse('https://google.com'))
+    context.subscriptions.push(vscode.commands.registerCommand('extension.openQLQueryUrl', () => {
+        commands.openQLQueryUrl();
+    }));
 
-
-
-        // runQueryCommand.run();
-    });
-
-    context.subscriptions.push(runQueryCommand);
-    context.subscriptions.push(runDisp);
+    context.subscriptions.push(commands);
+}
+function allDone(queryRunProgressKeys: QueryRunProgressKeys) {
+    for (const key in queryRunProgressKeys) {
+        if (!queryRunProgressKeys[key].done) {
+            return false;
+        }
+    }
+    return true;
 }
 
-class RunQueryCommand {
+class LgtmCommands {
 
     private lgtm: LgtmService;
     private _statusBarItem: StatusBarItem = window.createStatusBarItem(StatusBarAlignment.Left);
+    private lastQueryLink: string | undefined;
 
     constructor(lgtm: LgtmService) {
         this.lgtm = lgtm;
         this._statusBarItem.text = "lgtm ...";
     }
 
-    public run() {
+    public runQLQuery() {
         let editor = window.activeTextEditor;
         if (!editor) {
             this._statusBarItem.hide();
@@ -50,7 +56,7 @@ class RunQueryCommand {
             this._statusBarItem.show();
             if (!this.lgtm.isInitiated()) {
                 this._statusBarItem.text = "lgtm is starting ...";
-                this.lgtm.init(() => {
+                this.lgtm.init(this.handleError, () => {
                     this._statusBarItem.text = "lgtm ✓";
                     this._statusBarItem.tooltip = `lgtm service\n\nnonce: ${this.lgtm.nonce}\n\napiVersion: ${this.lgtm.apiVersion}`;
                     this.sendQuery(doc);
@@ -65,126 +71,112 @@ class RunQueryCommand {
 
     private sendQuery(doc: vscode.TextDocument) {
         const content = doc.getText();
-        const args = RunQueryCommand.parseQueryArgs(content.split("\n", 2));
+        const args = LgtmCommands.parseQueryArgs(content.split("\n", 2));
         const lang = args["lang"];
         const projectKeys = args["projectKeys"];
         const queryString = content;
 
-        this.lgtm.runQuery(lang, projectKeys, queryString, (error: any, response: Response, body: any) => {
-            if (error !== null) {
-                this._statusBarItem.text = `lgtm HTTP ✘: ${error}`;
+        this.lgtm.runQuery(lang, projectKeys, queryString, this.handleError, body => {
+            if (body.status !== "success") {
+                LgtmCommands.displayError(`(${body.error}): ${body.message}`);
                 return;
             }
 
-            const resp = JSON.parse(body);
-
-            if (resp.status !== "success") {
-                this._statusBarItem.text = `lgtm ✘ (${resp.error}): ${resp.message}`;
-                return;
-            }
-
-            const queryKey = resp.data.key;
+            const queryKey = body.data.key;
             const queryLink = `https://lgtm.com/query/${queryKey}`;
 
-            this._statusBarItem.text = `lgtm ✓ #${queryLink}`;
+            this.lastQueryLink = queryLink;
+            this._statusBarItem.text = `lgtm ✓ @${queryLink}`;
+            this._statusBarItem.command = "extension.openQLQueryUrl";
 
             let html = `<h3>Results <a href="${queryLink}">${queryLink}</a></h3>`;
 
-            resp.data.runs.forEach((element: any) => {
-                html += `<p>Project: ${element.projectKey} ${element.key}</p>`;
-            });
+            const queryRunKeys: QueryRunProgressKeys = {};
+            body.data.runs.forEach(r => {
+                queryRunKeys[r.key] = {
+                    done: r.done,
+                    progress: 0
+                };
 
-            // const queryRunKey = results.data.runs[0].key;
-            // this.getCustomQueryRunResults(0, 3, false, queryRunKey);
+                html += `<p>Project: ${r.projectKey} ${r.key}</p>`;
+
+                if (r.done) {
+                    this.showRunResults(r.key);
+                }
+            });
 
             const w = window.createWebviewPanel("json", `Results #${queryKey}`, { viewColumn: vscode.ViewColumn.Two });
             w.webview.html = html + body;
             w.reveal();
 
-            let wait1 = async () => await new Promise((resolve) => { setTimeout(() => { resolve(); }, 1000); });
-            let wait2 = async () => await new Promise((resolve) => { setTimeout(() => { resolve(); }, 2000); });
-            let wait3 = async () => await new Promise((resolve) => { setTimeout(() => { resolve(); }, 3000); });
+            if (!allDone(queryRunKeys)) {
+                this.displayProgress(queryRunKeys);
+            } else {
+                vscode.window.showInformationMessage("Queries done");
+            }
 
-            var queryRunKeys: any = {};
-            var i = 0;
-            resp.data.runs.forEach((element: any) => {
-                const key = element.key;
-                i++;
-                queryRunKeys[key] = {
-                    projectKey: element.projectKey,
-                    done: false,
-                    progress: 0,
-                    timeout: 3000 * i
-                };
+        });
+    }
 
-                setTimeout(async () => {
+    public showRunResults(queryRunKey: string) {
+        this.lgtm.getCustomQueryRunResults(0, 3, false, queryRunKey, this.handleError, body => {
+            vscode.workspace.openTextDocument({ language: "json", content: JSON.stringify(body) }).
+                then(document => {
+                    window.showTextDocument(document, { viewColumn: vscode.ViewColumn.Two }).
+                        then(document => {
+                        });
+                });
+        });
+    }
 
-                    await window.withProgress({
-                        location: vscode.ProgressLocation.Notification,
-                        title: "Running Query ..."//,
-                        // cancellable: true
-                    }, async progress => {
-                        await wait1();
-                        progress.report({ increment: 10 });
-                        progress.report({ message: key });
-                        await new Promise((resolve) => { setTimeout(() => { resolve(); }, queryRunKeys[key].timeout); });
-                        // for (let i = 0; i < 10; ++i) {
-                        //     progress.report({ increment: 10 });
-                        //     await wait2();
-                        // }
+    public displayProgress(queryRunKeys: QueryRunProgressKeys) {
+        window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: "Running Query ...",
+        }, progress => {
+            return new Promise(resolve => {
+                var timer = setInterval(() => {
+                    var qs = "[" + Object.keys(queryRunKeys).join(",") + "]";
+                    console.log("Query run keys: " + qs);
+                    this.lgtm.getCustomQueryRunProgress(qs, this.handleError, body => {
+                        let message = "Running Queries: ";
+                        for (const key in body.data) {
+                            const entry = body.data[key];
+                            console.log(entry);
+                            queryRunKeys[key].done = entry.done;
+                            queryRunKeys[key].progress = entry.progress;
+                            message += entry.progress + "% ";
+                        }
+                        if (allDone(queryRunKeys)) {
+                            console.log("All queries done");
+                            clearInterval(timer);
+                            resolve();
+                        } else {
+                            console.log("Progress: " + message);
+                            progress.report({ message: message, increment: 10 });
+                        }
                     });
-
-                }, 500);
-
-            });
-
-            // this.getProgress(queryRunKeys, (message) => {
-            // }, () => {
-            // resolve();
-            // });
-
-            workspace.openTextDocument({ language: "json", content: body }).then(document => {
-                window.showTextDocument(document, { viewColumn: vscode.ViewColumn.Two }).
-                    then(document => {
-                    });
+                }, 2000);
             });
         });
     }
 
-    public getProgress(queryRunKeys: any, showProgress: (message: string) => void, done: () => void) {
-        var timer = setInterval(() => {
-            var qs = "[" + Object.keys(queryRunKeys).join(",") + "]";
-            console.log("Query run keys: " + qs);
-            this.lgtm.getCustomQueryRunProgress(qs, (error, response, body) => {
-                var progressResponse: { data: any } = JSON.parse(body);
-                var allDone = true;
-                var message = "";
-                for (var key in progressResponse.data) {
-                    var entry: { done: boolean, progress: number } = progressResponse.data[key];
-                    console.log(entry);
-                    if (entry.done === false) {
-                        allDone = false;
-                    }
-                    queryRunKeys[key].done = entry.done;
-                    queryRunKeys[key].progress = entry.progress;
-                    // progress.report({ message: `Project ${queryRunKeys[key].projectKey} ${queryRunKeys[key].progress}%` });
-                    message += entry.progress + "<b>asdf</b>\n\n";
-                }
-                console.log(`All done: ${allDone}`);
-                if (allDone) {
-                    console.log("All queries done");
-                    clearInterval(timer);
-                    done();
-                } else {
-                    showProgress(message);
-                }
-            });
-        }, 2000);
+    public openQLQueryUrl() {
+        if (this.lastQueryLink === undefined) {
+            vscode.window.showWarningMessage("There is no query link to open.");
+            return;
+        }
+
+        vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(this.lastQueryLink));
     }
 
-    public display() {
-        vscode.window.showInformationMessage('nonce: ' + this.lgtm.nonce);
-        vscode.window.showInformationMessage('apiVersion: ' + this.lgtm.apiVersion);
+    public handleError(error: any) {
+        this._statusBarItem.text = "lgtm ✘";
+        LgtmCommands.displayError(`HTTP: ${error}`);
+    }
+
+    public static displayError(message: string) {
+        vscode.window.showErrorMessage('lgtm ✘ ' + message);
     }
 
     public dispose() {
@@ -195,86 +187,14 @@ class RunQueryCommand {
         const result: { [id: string]: string; } = {};
         content.map(function (e) {
             const m = e.match("//#(\\w+)=([,\\[\\]\\w]+)");
-            console.log(m);
+            console.log('Query arg match:', m);
             if (m !== null && m.length === 3) {
                 result[m[1]] = m[2];
             }
         });
 
-        console.log(result);
+        console.log('args:', result);
         return result;
-    }
-
-    public async testProgressBar() {
-        let wait1 = async () => await new Promise((resolve) => { setTimeout(() => { resolve(); }, 3000); });
-        let wait2 = async () => await new Promise((resolve) => { setTimeout(() => { resolve(); }, 1000); });
-
-        await vscode.window.withProgress(
-            {
-                location: vscode.ProgressLocation.Notification,
-                title: "Test 1: report only increment"
-            },
-            async (progress) => {
-                await wait1();
-                for (let i = 0; i < 10; ++i) {
-                    progress.report({ increment: 1 });
-                    await wait2();
-                }
-            });
-
-        await vscode.window.withProgress(
-            {
-                location: vscode.ProgressLocation.Notification,
-                title: "Test 2: report only message"
-            },
-            async (progress) => {
-                await wait1();
-                for (let i = 0; i < 15; ++i) {
-                    progress.report({ message: `message ${i}` });
-                    await wait2();
-                }
-            });
-
-        await vscode.window.withProgress(
-            {
-                location: vscode.ProgressLocation.Notification,
-                title: "Test 3: report message and increment, together"
-            },
-            async (progress) => {
-                await wait1();
-                for (let i = 0; i < 20; ++i) {
-                    progress.report({ increment: 5, message: `message ${i}` });
-                    await wait2();
-                }
-            });
-
-        await vscode.window.withProgress(
-            {
-                location: vscode.ProgressLocation.Notification,
-                title: "Test 4: report increment then message"
-            },
-            async (progress) => {
-                await wait1();
-                for (let i = 0; i < 25; ++i) {
-                    progress.report({ increment: 10 });
-                    progress.report({ message: `message ${i}` });
-                    await wait2();
-                }
-            });
-
-        await vscode.window.withProgress(
-            {
-                location: vscode.ProgressLocation.Notification,
-                title: "Test 5: report message then increment"
-            },
-            async (progress) => {
-                await wait1();
-                for (let i = 0; i < 30; ++i) {
-                    progress.report({ message: `message ${i}` });
-                    progress.report({ increment: 15 });
-                    await wait2();
-                }
-            });
     }
 }
 
