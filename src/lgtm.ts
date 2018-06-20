@@ -32,7 +32,8 @@ export type RunQueryResponse = RunQuerySuccess | RunQueryError;
 export interface QueryRunProgressKeys {
     [key: string]: {
         done: boolean,
-        progress: number
+        progress: number,
+        error?: string
     };
 }
 

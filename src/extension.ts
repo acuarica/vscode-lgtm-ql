@@ -1,5 +1,6 @@
 'use strict';
 
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { StatusBarItem, window, StatusBarAlignment } from 'vscode';
 import { LgtmService, QueryRunProgressKeys } from './lgtm';
@@ -8,7 +9,7 @@ export function activate(context: vscode.ExtensionContext) {
     console.log('Extension "vscode-lgtm-ql" is active');
 
     let lgtm = new LgtmService();
-    let commands = new LgtmCommands(lgtm);
+    let commands = new LgtmCommands(lgtm, context.extensionPath);
 
     // The command has been defined in the package.json file
     // Now provide the implementation of the command with registerCommand
@@ -37,10 +38,12 @@ class LgtmCommands {
     private lgtm: LgtmService;
     private _statusBarItem: StatusBarItem = window.createStatusBarItem(StatusBarAlignment.Left);
     private lastQueryLink: string | undefined;
+    private _extensionPath: string;
 
-    constructor(lgtm: LgtmService) {
+    constructor(lgtm: LgtmService, extensionPath: string) {
         this.lgtm = lgtm;
         this._statusBarItem.text = "lgtm ...";
+        this._extensionPath = extensionPath;
     }
 
     public runQLQuery() {
@@ -89,7 +92,9 @@ class LgtmCommands {
             this._statusBarItem.text = `lgtm ✓ @${queryLink}`;
             this._statusBarItem.command = "extension.openQLQueryUrl";
 
-            let html = `<h3>Results <a href="${queryLink}">${queryLink}</a></h3>`;
+            const w = window.createWebviewPanel("json", `Results #${queryKey}`, { viewColumn: vscode.ViewColumn.Two }, { enableScripts: true });
+
+            let html = "";
 
             const queryRunKeys: QueryRunProgressKeys = {};
             body.data.runs.forEach(r => {
@@ -98,15 +103,15 @@ class LgtmCommands {
                     progress: 0
                 };
 
-                html += `<p>Project: ${r.projectKey} ${r.key}</p>`;
+                html += `<p>Project: ${r.projectKey} ${r.key}</p>
+                    <div id='p${r.key}'></div>`;
 
                 if (r.done) {
-                    this.showRunResults(r.key);
+                    this.showRunResults(r.key, w);
                 }
             });
 
-            const w = window.createWebviewPanel("json", `Results #${queryKey}`, { viewColumn: vscode.ViewColumn.Two });
-            w.webview.html = html + body;
+            w.webview.html = this.getHtml(doc, queryLink, html + body);
             w.reveal();
 
             if (!allDone(queryRunKeys)) {
@@ -114,18 +119,35 @@ class LgtmCommands {
             } else {
                 vscode.window.showInformationMessage("Queries done");
             }
-
         });
     }
 
-    public showRunResults(queryRunKey: string) {
+    private getHtml(doc: vscode.TextDocument, queryLink: string, placeholder: string) {
+        const scriptPathOnDisk = vscode.Uri.file(path.join(this._extensionPath, 'media', 'main.js'));
+        const scriptUri = scriptPathOnDisk.with({ scheme: 'vscode-resource' });
+        const displayName = path.basename(doc.fileName);
+
+        return `<html> 
+            <body>
+            <h3>Results for ${displayName} <a href="${queryLink}">${queryLink}</a></h3>
+            ${placeholder}
+            <script src="${scriptUri}"></script>
+            </body>
+        </html>`;
+    }
+
+    public showRunResults(queryRunKey: string, panel: vscode.WebviewPanel) {
         this.lgtm.getCustomQueryRunResults(0, 3, false, queryRunKey, this.handleError, body => {
-            vscode.workspace.openTextDocument({ language: "json", content: JSON.stringify(body) }).
-                then(document => {
-                    window.showTextDocument(document, { viewColumn: vscode.ViewColumn.Two }).
-                        then(document => {
-                        });
-                });
+            panel.webview.postMessage({
+                command: 'results',
+                key: queryRunKey,
+                body: JSON.stringify(body)
+            });
+            // vscode.workspace.openTextDocument({ language: "json", content: JSON.stringify(body) });
+            // .then(document => {
+            // window.showTextDocument(document, { viewColumn: vscode.ViewColumn.Two });
+            // .then(document => { });
+            // });
         });
     }
 
