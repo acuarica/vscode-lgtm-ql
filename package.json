@@ -16,8 +16,8 @@
         "Programming Languages"
     ],
     "activationEvents": [
-        "onCommand:extension.runQLQuery",
-        "onCommand:extension.registerLgtm"
+        "onCommand:extension.checkErrors",
+        "onCommand:extension.runQuery"
     ],
     "main": "./out/extension",
     "contributes": {
@@ -43,12 +43,12 @@
         ],
         "commands": [
             {
-                "command": "extension.runQLQuery",
-                "title": "Run QL Query on lgtm.com"
+                "command": "extension.checkErrors",
+                "title": "Check errors using lgtm.com"
             },
             {
-                "command": "extension.registerLgtm",
-                "title": "Register into lgtm.com"
+                "command": "extension.runQuery",
+                "title": "Run QL Query on lgtm.com"
             }
         ]
     },
@@ -60,6 +60,7 @@
         "test": "npm run compile && node ./node_modules/vscode/bin/test"
     },
     "devDependencies": {
+        "@types/fs-extra": "^5.0.3",
         "@types/mocha": "^2.2.42",
         "@types/node": "^7.0.43",
         "@types/request": "^2.47.0",
@@ -68,6 +69,10 @@
         "vscode": "^1.1.6"
     },
     "dependencies": {
+        "fs-extra": "^6.0.1",
         "eslint": "^4.19.1"
-    }
+    },
+    "extensionDependencies": [
+        "GrapeCity.gc-excelviewer"
+    ]
 }

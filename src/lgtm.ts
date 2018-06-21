@@ -5,6 +5,32 @@ const request = requestBase.defaults({ jar: true });
 
 type ErrorHandler = (error: any) => void;
 
+interface GetDistSuccess {
+    status: "success";
+    data: string;
+}
+
+type GetDistResponse = GetDistSuccess;
+
+interface CheckErrorsSuccess {
+    data: {
+        errors: [{
+            severity: string,
+            position: {
+                file: string,
+                line: number,
+                column: number,
+                endLine: number,
+                endColumn: number
+            }, message: string,
+            libraryError: boolean
+        }],
+        guessedLocation: string
+    };
+}
+
+type CheckErrorsResponse = CheckErrorsSuccess;
+
 interface RunQuerySuccess {
     status: "success";
     data: {
@@ -55,7 +81,12 @@ interface RunResultsSuccess {
             isInAlertFormat: boolean
         }, startIndex: number,
         endIndex: number,
-        rows: [any]
+        rows: [[
+            {
+                label: string,
+                fileLocation: { path: string, line: number }
+            }
+        ]]
     };
 }
 
@@ -94,19 +125,60 @@ export class LgtmService {
         });
     }
 
-    public getDist(callback: (error: any, body: any) => void) {
+    public getDist(
+        errorHandler: ErrorHandler,
+        okHandler: (body: GetDistResponse) => void
+    ) {
         request.get("https://lgtm.com/internal_api/v0.2/getDist", {
             qs: {
                 nonce: this.nonce,
                 apiVersion: this.apiVersion
             }
         }, function (error, response, body) {
-            LgtmService.log('getDist', error, response, body);
-            callback(error, body);
+            LgtmService.reply(
+                'getDist',
+                error,
+                response,
+                body,
+                errorHandler,
+                LgtmService.jsonHandler(okHandler)
+            );
         });
     }
 
-    public runQuery(lang: string, projectKeys: String, queryString: String, errorHandler: ErrorHandler, okHandler: (body: RunQueryResponse) => void) {
+    public checkErrors(
+        distribution: string,
+        language: string,
+        queryText: string,
+        errorHandler: ErrorHandler,
+        okHandler: (body: CheckErrorsResponse) => void
+    ) {
+        request.post("https://lgtm.com/qlapi-slow/checkerrors", {
+            json: {
+                distribution: distribution,
+                language: language,
+                queryText: queryText
+            }
+        }, (error, response, body) => {
+            LgtmService.reply(
+                'checkErrors',
+                error,
+                response,
+                body,
+                errorHandler,
+                // LgtmService.jsonHandler(okHandler)
+                okHandler
+            );
+        });
+    }
+
+    public runQuery(
+        lang: string,
+        projectKeys: String,
+        queryString: String,
+        errorHandler: ErrorHandler,
+        okHandler: (body: RunQueryResponse) => void
+    ) {
         request.post("https://lgtm.com/internal_api/v0.2/runQuery", {
             form: {
                 lang: "java",
@@ -117,7 +189,14 @@ export class LgtmService {
                 apiVersion: this.apiVersion
             }
         }, (error, response, body) => {
-            LgtmService.reply('runQuery', error, response, body, errorHandler, LgtmService.jsonHandler(okHandler));
+            LgtmService.reply(
+                'runQuery',
+                error,
+                response,
+                body,
+                errorHandler,
+                LgtmService.jsonHandler(okHandler)
+            );
         });
     }
 
@@ -133,7 +212,14 @@ export class LgtmService {
         });
     }
 
-    public getCustomQueryRunResults(startIndex: number, count: number, unfiltered: boolean, queryRunKey: string, errorHandler: ErrorHandler, okHandler: (body: RunResultsResponse) => void) {
+    public getCustomQueryRunResults(
+        startIndex: number,
+        count: number,
+        unfiltered: boolean,
+        queryRunKey: string,
+        errorHandler: ErrorHandler,
+        okHandler: (body: RunResultsResponse) => void
+    ) {
         request.get("https://lgtm.com/internal_api/v0.2/getCustomQueryRunResults", {
             qs: {
                 startIndex: startIndex,
@@ -144,11 +230,25 @@ export class LgtmService {
                 apiVersion: this.apiVersion
             }
         }, function (error, response, body) {
-            LgtmService.reply('getCustomQueryRunResults', error, response, body, errorHandler, LgtmService.jsonHandler(okHandler));
+            LgtmService.reply(
+                'getCustomQueryRunResults',
+                error,
+                response,
+                body,
+                errorHandler,
+                LgtmService.jsonHandler(okHandler)
+            );
         });
     }
 
-    private static reply(source: string, error: any, response: Response, body: any, errorHandler: ErrorHandler, okHandler: (body: any) => void) {
+    private static reply(
+        source: string,
+        error: any,
+        response: Response,
+        body: any,
+        errorHandler: ErrorHandler,
+        okHandler: (body: any) => void
+    ) {
         LgtmService.log(source, error, response, body);
         if (error !== null) {
             errorHandler(error);
