@@ -1,17 +1,15 @@
 'use strict';
 
-import * as path from 'path';
 import * as vscode from 'vscode';
 import { StatusBarItem, window, StatusBarAlignment, TextDocument, Diagnostic, languages, DiagnosticSeverity, Range, workspace } from 'vscode';
-import { LgtmService, QueryRunProgressKeys } from './lgtm';
-
+import { LgtmService, QueryRunProgressKeys, Project } from './lgtm';
 import fs = require('fs-extra');
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Extension "vscode-lgtm-ql" is active');
 
     let lgtm = new LgtmService();
-    let commands = new LgtmCommands(lgtm, context.extensionPath);
+    let commands = new LgtmCommands(lgtm);
 
     context.subscriptions.push(vscode.commands.registerCommand('extension.checkErrors', () => {
         commands.withQlActiveEditor(doc => {
@@ -19,7 +17,7 @@ export function activate(context: vscode.ExtensionContext) {
                 if (commands.dist === null) {
                     lgtm.getDist(commands.handleError, body => {
                         commands.dist = body.data;
-                        commands._statusBarItem.text += `\ndist: ${commands.dist}`;
+                        commands.lgtmStatus.appendDist(commands.dist);
                         commands.checkErrors(doc, commands.dist);
                     });
                 } else {
@@ -32,6 +30,8 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.commands.registerCommand('extension.runQuery', () => {
         commands.withQlActiveEditor(doc => {
             commands.checkInit().then(() => {
+
+
                 commands.runQuery(doc);
             });
         });
@@ -44,12 +44,13 @@ export function activate(context: vscode.ExtensionContext) {
     }));
 
     context.subscriptions.push(workspace.onDidChangeTextDocument(e => {
+        console.log(e.contentChanges);
         commands.withQlDocument(e.document, doc => {
             commands.checkInit().then(() => {
                 if (commands.dist === null) {
                     lgtm.getDist(commands.handleError, body => {
                         commands.dist = body.data;
-                        commands._statusBarItem.text += `\ndist: ${commands.dist}`;
+                        commands.lgtmStatus.appendDist(commands.dist);
                         commands.checkErrors(doc, commands.dist);
                     });
                 } else {
@@ -62,6 +63,9 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(commands);
 }
 
+export function deactivate() {
+}
+
 function allDone(queryRunProgressKeys: QueryRunProgressKeys) {
     for (const key in queryRunProgressKeys) {
         if (!queryRunProgressKeys[key].done) {
@@ -71,30 +75,55 @@ function allDone(queryRunProgressKeys: QueryRunProgressKeys) {
     return true;
 }
 
+class LgtmStatus {
+
+    private statusBarItem: StatusBarItem = window.createStatusBarItem(StatusBarAlignment.Left);
+
+    constructor() {
+        this.statusBarItem.text = "lgtm is starting ...";
+        this.statusBarItem.tooltip = 'lgtm service';
+        this.statusBarItem.show();
+    }
+
+    initiated(nonce: string, apiVersion: string) {
+        this.statusBarItem.text = "lgtm ✓";
+        this.statusBarItem.tooltip += `\n\nnonce: ${nonce}\n\napiVersion: ${apiVersion}`;
+    }
+
+    queryUrl(queryLink: string): any {
+        this.statusBarItem.text = `lgtm ✓ @${queryLink}`;
+        this.statusBarItem.command = "extension.openQLQueryUrl";
+    }
+
+    appendDist(dist: string) {
+        this.statusBarItem.tooltip += `\n\ndist: ${dist}`;
+    }
+
+    dispose() {
+        this.statusBarItem.dispose();
+    }
+}
+
 class LgtmCommands {
 
     private lgtm: LgtmService;
-    public _statusBarItem: StatusBarItem = window.createStatusBarItem(StatusBarAlignment.Left);
+    lgtmStatus = new LgtmStatus();
     private lastQueryLink: string | undefined;
-    private _extensionPath: string;
     dist: string | null = null;
 
-    constructor(lgtm: LgtmService, extensionPath: string) {
+    constructor(lgtm: LgtmService) {
         this.lgtm = lgtm;
-        this._statusBarItem.text = "lgtm ...";
-        this._extensionPath = extensionPath;
+        this.checkInit();
     }
 
     checkInit() {
         return new Promise((resolve, reject) => {
             if (!this.lgtm.isInitiated()) {
-                this._statusBarItem.text = "lgtm is starting ...";
                 this.lgtm.init(error => {
                     this.handleError(error);
                     reject(error);
-                }, () => {
-                    this._statusBarItem.text = "lgtm ✓";
-                    this._statusBarItem.tooltip = `lgtm service\n\nnonce: ${this.lgtm.nonce}\n\napiVersion: ${this.lgtm.apiVersion}`;
+                }, (nonce, apiVersion) => {
+                    this.lgtmStatus.initiated(nonce, apiVersion);
                     resolve();
                 });
             } else {
@@ -105,17 +134,13 @@ class LgtmCommands {
 
     withQlDocument(doc: TextDocument, action: (doc: TextDocument) => void) {
         if (doc.languageId === "ql") {
-            this._statusBarItem.show();
             action(doc);
-        } else {
-            this._statusBarItem.hide();
         }
     }
 
     withQlActiveEditor(action: (doc: TextDocument) => void) {
         const editor = window.activeTextEditor;
         if (!editor) {
-            this._statusBarItem.hide();
             return;
         }
 
@@ -161,93 +186,99 @@ class LgtmCommands {
         const args = LgtmCommands.parseQueryArgs(content.split("\n", 2));
         const lang = args["lang"];
         const projectKeys = args["projectKeys"];
-        const queryString = content;
 
-        this.lgtm.runQuery(lang, projectKeys, queryString, this.handleError, body => {
-            if (body.status !== "success") {
-                LgtmCommands.displayError(`(${body.error}): ${body.message}`);
-                return;
-            }
+        this.lgtm.getProjectsByKey(projectKeys, this.handleError, body => {
+            const queryString = content;
+            const ps = body;
+            this.lgtm.runQuery(lang, projectKeys, queryString, this.handleError, body => {
+                if (body.status !== "success") {
+                    LgtmCommands.displayError(`(${body.error}): ${body.message}`);
+                    return;
+                }
 
-            const queryKey = body.data.key;
-            const queryLink = `https://lgtm.com/query/${queryKey}`;
+                const queryKey = body.data.key;
+                const queryLink = `https://lgtm.com/query/${queryKey}`;
 
-            this.lastQueryLink = queryLink;
-            this._statusBarItem.text = `lgtm ✓ @${queryLink}`;
-            this._statusBarItem.command = "extension.openQLQueryUrl";
+                this.lastQueryLink = queryLink;
+                this.lgtmStatus.queryUrl(queryLink);
 
-            const w = window.createWebviewPanel("json", `Results #${queryKey}`, { viewColumn: vscode.ViewColumn.Two }, { enableScripts: true });
+                // const w = window.createWebviewPanel("json", `Results #${queryKey}`, { viewColumn: vscode.ViewColumn.Two }, { enableScripts: true });
 
-            let html = "";
+                // let html = "";
 
-            const queryRunKeys: QueryRunProgressKeys = {};
-            body.data.runs.forEach(r => {
-                queryRunKeys[r.key] = {
-                    done: r.done,
-                    progress: 0
-                };
+                const queryRunKeys: QueryRunProgressKeys = {};
+                const mapByQueryKey: { [key: string]: { project: Project, snapshotKey: string } } = {};
+                body.data.runs.forEach(r => {
+                    queryRunKeys[r.key] = {
+                        done: r.done,
+                        progress: 0
+                    };
 
-                html += `<p>Project: ${r.projectKey} ${r.key}</p>
-                    <div id='p${r.key}'></div>`;
+                    mapByQueryKey[r.key] = { project: ps.data.fullProjects[r.projectKey], snapshotKey: r.snapshotKey };
+                    // html += `<p>Project: ${r.projectKey} ${r.key}</p>
+                    //     <div id='p${r.key}'></div>`;
 
-                if (r.done) {
-                    this.showRunResults(r.key, w);
+                    if (r.done) {
+                        this.showRunResults(r.key, queryKey, ps.data.fullProjects[r.projectKey], r.snapshotKey);
+                    }
+                });
+
+                // w.webview.html = this.getHtml(doc, queryLink, html + body);
+                // w.reveal();
+
+                if (!allDone(queryRunKeys)) {
+                    this.displayProgress(queryRunKeys, queryRunKey => {
+                        // ps.data.fullProjects[r.projectKey]
+                        this.showRunResults(
+                            queryRunKey,
+                            queryKey,
+                            mapByQueryKey[queryRunKey].project,
+                            mapByQueryKey[queryRunKey].snapshotKey
+                        );
+                    });
+                } else {
+                    vscode.window.showInformationMessage("Queries done");
                 }
             });
-
-            w.webview.html = this.getHtml(doc, queryLink, html + body);
-            w.reveal();
-
-            if (!allDone(queryRunKeys)) {
-                this.displayProgress(queryRunKeys);
-            } else {
-                vscode.window.showInformationMessage("Queries done");
-            }
         });
     }
 
-    private getHtml(doc: vscode.TextDocument, queryLink: string, placeholder: string) {
-        const scriptPathOnDisk = vscode.Uri.file(path.join(this._extensionPath, 'media', 'main.js'));
-        const scriptUri = scriptPathOnDisk.with({ scheme: 'vscode-resource' });
-        const displayName = path.basename(doc.fileName);
+    // private getHtml(doc: vscode.TextDocument, queryLink: string, placeholder: string) {
+    //     const scriptPathOnDisk = vscode.Uri.file(path.join(this._extensionPath, 'media', 'main.js'));
+    //     const scriptUri = scriptPathOnDisk.with({ scheme: 'vscode-resource' });
+    //     const displayName = path.basename(doc.fileName);
 
-        return `<html> 
-            <body>
-            <h3>Results for ${displayName} <a href="${queryLink}">${queryLink}</a></h3>
-            ${placeholder}
-            <script src="${scriptUri}"></script>
-            </body>
-        </html>`;
-    }
+    //     return `<html> 
+    //         <body>
+    //         <h3>Results for ${displayName} <a href="${queryLink}">${queryLink}</a></h3>
+    //         ${placeholder}
+    //         <script src="${scriptUri}"></script>
+    //         </body>
+    //     </html>`;
+    // }
 
-    public showRunResults(queryRunKey: string, panel: vscode.WebviewPanel) {
-
-        // for (let i = 0; i < 2; i++) {
-        //     vscode.workspace.openTextDocument({ language: "plaintext", content: "Hola " + i }).then(document => {
-        //         window.showTextDocument(document, { viewColumn: vscode.ViewColumn.Two, preview: false }).
-        //             then(document => { });
-        //     });
-        // }
-
+    public showRunResults(queryRunKey: string, queryKey: string, project: Project, snapshotKey: string) {
+        const url = "https://lgtm.com/projects";
         this.lgtm.getCustomQueryRunResults(0, 3, false, queryRunKey, this.handleError, body => {
-            panel.webview.postMessage({
-                command: 'results',
-                key: queryRunKey,
-                body: JSON.stringify(body)
-            });
-
             let csv = body.data.metadata.columns.join(",") + "\n";
             for (const row of body.data.rows) {
-                csv += row.map(c => c.label).join(",") + "\n";
+                csv += row.map(c => {
+                    if (c.fileLocation === undefined) {
+                        return `"${c.label}"`;
+                    } else {
+                        return `"${c.label}(${url}/${project.slug}/snapshot/${snapshotKey}/files${c.fileLocation.path}#L${c.fileLocation.line})"`;
+                    }
+                }).join(",") + "\n";
             }
 
+            const p = project.displayName.replace('/', '-');
             let tmpDir = workspace.rootPath;
             if (tmpDir !== undefined) {
-                tmpDir += "/.tmp";
+                tmpDir += "/.lgtm/" + queryKey;
                 if (!fs.existsSync(tmpDir)) {
-                    fs.mkdirSync(tmpDir);
+                    fs.ensureDirSync(tmpDir);
                 }
-                const csvPath = `${tmpDir}/${queryRunKey}.csv`;
+                const csvPath = `${tmpDir}/${queryRunKey}-${p}.csv`;
                 fs.writeFileSync(csvPath, csv);
 
                 // Open CSV in Excel Viewer and clean up.
@@ -265,7 +296,7 @@ class LgtmCommands {
         });
     }
 
-    public displayProgress(queryRunKeys: QueryRunProgressKeys) {
+    public displayProgress(queryRunKeys: QueryRunProgressKeys, queryRunKeyDone: (queryRunKey: string) => void) {
         window.withProgress({
             location: vscode.ProgressLocation.Notification,
             title: "Running Query ...",
@@ -279,6 +310,11 @@ class LgtmCommands {
                         for (const key in body.data) {
                             const entry = body.data[key];
                             console.log(entry);
+
+                            if (entry.done && !queryRunKeys[key].done) {
+                                queryRunKeyDone(key);
+                            }
+
                             queryRunKeys[key].done = entry.done;
                             queryRunKeys[key].progress = entry.progress;
                             message += entry.progress + "% ";
@@ -307,7 +343,6 @@ class LgtmCommands {
     }
 
     public handleError(error: any) {
-        this._statusBarItem.text = "lgtm ✘";
         LgtmCommands.displayError(`HTTP: ${error}`);
     }
 
@@ -316,7 +351,7 @@ class LgtmCommands {
     }
 
     public dispose() {
-        this._statusBarItem.dispose();
+        this.lgtmStatus.dispose();
     }
 
     public static parseQueryArgs(content: string[]) {
@@ -332,7 +367,4 @@ class LgtmCommands {
         console.log('args:', result);
         return result;
     }
-}
-
-export function deactivate() {
 }

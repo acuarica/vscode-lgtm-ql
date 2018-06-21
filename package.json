@@ -16,8 +16,7 @@
         "Programming Languages"
     ],
     "activationEvents": [
-        "onCommand:extension.checkErrors",
-        "onCommand:extension.runQuery"
+        "onLanguage:ql"
     ],
     "main": "./out/extension",
     "contributes": {
