@@ -5,6 +5,33 @@ const request = requestBase.defaults({ jar: true });
 
 type ErrorHandler = (error: any) => void;
 
+export interface Project {
+    key: string;
+    languages: [string];
+    totalLanguageChurn: [{ lang: string, churn: number }];
+    displayName: string;
+    slug: string;
+    externalURL: {
+        url: string;
+        name: string;
+        theme: string;
+    };
+    adminURL: string;
+    modes: { [lang: string]: string };
+}
+
+interface GetProjectsByKeySuccess {
+    status: "success";
+    data: {
+        fullProjects: {
+            [key: string]: Project
+        }
+        anonProject: {}
+    };
+}
+
+type GetProjectsByKeyResponse = GetProjectsByKeySuccess;
+
 interface GetDistSuccess {
     status: "success";
     data: string;
@@ -79,12 +106,13 @@ interface RunResultsSuccess {
             resultsWereTruncated: boolean,
             columns: [string],
             isInAlertFormat: boolean
-        }, startIndex: number,
+        },
+        startIndex: number,
         endIndex: number,
         rows: [[
             {
                 label: string,
-                fileLocation: { path: string, line: number }
+                fileLocation?: { path: string, line: number }
             }
         ]]
     };
@@ -102,7 +130,7 @@ export class LgtmService {
             && this.apiVersion !== null && this.apiVersion !== "";
     }
 
-    public init(errorHandler: ErrorHandler, okHandler: () => void) {
+    public init(errorHandler: ErrorHandler, okHandler: (nonce: string, apiVersion: string) => void) {
         request("https://lgtm.com/query", (error, response, body) => {
             const extractValue = (body: string, regex: string) => {
                 const m = body.match(regex);
@@ -120,7 +148,7 @@ export class LgtmService {
                 this.apiVersion = extractValue(body, "<div id=\"preloaded_content\" data-api-version=(\\w+)>");
                 console.log('apiVersion:', this.apiVersion);
 
-                okHandler();
+                okHandler(this.nonce, this.apiVersion);
             });
         });
     }
@@ -137,6 +165,29 @@ export class LgtmService {
         }, function (error, response, body) {
             LgtmService.reply(
                 'getDist',
+                error,
+                response,
+                body,
+                errorHandler,
+                LgtmService.jsonHandler(okHandler)
+            );
+        });
+    }
+
+    public getProjectsByKey(
+        keys: string,
+        errorHandler: ErrorHandler,
+        okHandler: (body: GetProjectsByKeyResponse) => void
+    ) {
+        request.get("https://lgtm.com/internal_api/v0.2/getProjectsByKey", {
+            qs: {
+                keys: keys,
+                nonce: this.nonce,
+                apiVersion: this.apiVersion
+            }
+        }, function (error, response, body) {
+            LgtmService.reply(
+                'getProjectsByKey',
                 error,
                 response,
                 body,
@@ -174,8 +225,8 @@ export class LgtmService {
 
     public runQuery(
         lang: string,
-        projectKeys: String,
-        queryString: String,
+        projectKeys: string,
+        queryString: string,
         errorHandler: ErrorHandler,
         okHandler: (body: RunQueryResponse) => void
     ) {
