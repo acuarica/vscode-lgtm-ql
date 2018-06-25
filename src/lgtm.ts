@@ -58,6 +58,33 @@ interface CheckErrorsSuccess {
 
 type CheckErrorsResponse = CheckErrorsSuccess;
 
+interface AutoCompleteRequest {
+    distribution: string;
+    language: string;
+    offset: string;
+    queryPath: string;
+    queryText: string;
+}
+
+interface AutoCompleteResponse {
+    data: any
+}
+
+export function autoComplete(req: AutoCompleteRequest, errorHandler: ErrorHandler, okHandler: (body: AutoCompleteResponse) => void) {
+    request.post("https://lgtm.com/qlapi-fast/autocomplete", {
+        json: req
+    }, (error, response, body) => {
+        LgtmService.reply(
+            'checkErrors',
+            error,
+            response,
+            body,
+            errorHandler,
+            LgtmService.jsonHandler(okHandler)
+        );
+    });
+}
+
 interface RunQuerySuccess {
     status: "success";
     data: {
@@ -292,7 +319,7 @@ export class LgtmService {
         });
     }
 
-    private static reply(
+    static reply(
         source: string,
         error: any,
         response: Response,
@@ -308,7 +335,7 @@ export class LgtmService {
         }
     }
 
-    private static jsonHandler<T>(okHandler: (body: T) => void) {
+    static jsonHandler<T>(okHandler: (body: T) => void): ((a: any) => void) {
         return function (body: any) {
             okHandler(JSON.parse(body));
         };

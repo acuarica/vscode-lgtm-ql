@@ -46,7 +46,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     const t: { timer: NodeJS.Timer | null } = { timer: null };
     context.subscriptions.push(workspace.onDidChangeTextDocument(e => {
-        console.log("onChange: " + e.contentChanges[0].text);
+        console.log(`onChange: ${JSON.stringify(e.contentChanges)}`);
+
         if (t.timer !== null) {
             clearTimeout(t.timer);
         }
@@ -169,8 +170,8 @@ class LgtmCommands {
         };
 
         this.lgtm.checkErrors(distribution, "JAVA", doc.getText(), this.handleError, body => {
-            console.log("asdfasdf");
-            const dc = languages.createDiagnosticCollection("hola");
+            console.log("check-errors");
+            const dc = languages.createDiagnosticCollection("hello");
             console.log(doc.uri);
             const ds: Diagnostic[] = [];
             body.data.errors.forEach(err => {
@@ -211,7 +212,6 @@ class LgtmCommands {
                 this.lgtmStatus.queryUrl(queryLink);
 
                 // const w = window.createWebviewPanel("json", `Results #${queryKey}`, { viewColumn: vscode.ViewColumn.Two }, { enableScripts: true });
-
                 // let html = "";
 
                 const queryKeyFolder = date.getDate() + '-' + queryKey;
@@ -273,11 +273,15 @@ class LgtmCommands {
                 if (!fs.existsSync(tmpDir)) {
                     fs.ensureDirSync(tmpDir);
                 }
-                const csvPath = `${tmpDir}/${queryRunKey}-${p}.csv`;
+                const csvPath = `${tmpDir}/${p}-${queryRunKey}.csv`;
                 fs.writeFileSync(csvPath, csv);
 
+                // workspace.openTextDocument(csvPath).then(doc => {
+                //     vscode.commands.executeCommand("csv.preview", doc.uri);
+                // });
+
                 workspace.openTextDocument(csvPath).then(doc => {
-                    vscode.commands.executeCommand("csv.preview", doc.uri);
+                    window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Two, preview: false });
                 });
 
                 // vscode.workspace.openTextDocument({ language: "csv", content: csv }).then(document => {
