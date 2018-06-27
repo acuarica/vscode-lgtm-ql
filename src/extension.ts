@@ -1,10 +1,12 @@
 'use strict';
 
 import * as vscode from 'vscode';
-import { StatusBarItem, window, StatusBarAlignment, TextDocument, Diagnostic, languages, DiagnosticSeverity, Range, workspace } from 'vscode';
-import { LgtmService, QueryRunProgressKeys, Project } from './lgtm';
+import { StatusBarItem, window, StatusBarAlignment, TextDocument, Diagnostic, languages, DiagnosticSeverity, Range, workspace, Hover } from 'vscode';
+import { LgtmService, QueryRunProgressKeys, Project, toolTip } from './lgtm';
 import fs = require('fs-extra');
 import * as date from './date';
+// import { resolve } from 'path';
+var TurndownService = require('turndown');
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Extension "vscode-lgtm-ql" is active');
@@ -68,6 +70,35 @@ export function activate(context: vscode.ExtensionContext) {
             });
         }, 500);
     }));
+
+
+    context.subscriptions.push(languages.registerHoverProvider({
+        language: 'ql',
+        scheme: 'file'
+    }, {
+            provideHover: (doc, position, token): vscode.ProviderResult<Hover> => {
+                return new Promise(resolve => {
+                    if (commands.dist === null) {
+                        // reject("Dist not fetched");
+                    } else {
+                        toolTip({
+                            distribution: commands.dist,
+                            language: "JAVA",
+                            offset: doc.offsetAt(position),
+                            queryPath: "_query.ql",
+                            queryText: doc.getText()
+                        }, commands.handleError, body => {
+                            var turndownService = new TurndownService();
+                            var markdown = turndownService.turndown(body.data.tooltip);
+                            resolve(new vscode.Hover(
+                                new vscode.MarkdownString(markdown)
+                            ));
+                        });
+                    }
+                });
+            }
+        }
+    ));
 
     context.subscriptions.push(commands);
 }
@@ -266,14 +297,15 @@ class LgtmCommands {
                 }).join(",") + "\n";
             }
 
-            const p = project.displayName.replace('/', '-');
+            const projectName = project.displayName.replace('/', '-');
             let tmpDir = workspace.rootPath;
             if (tmpDir !== undefined) {
                 tmpDir += "/.lgtm/" + queryKeyDir;
                 if (!fs.existsSync(tmpDir)) {
                     fs.ensureDirSync(tmpDir);
                 }
-                const csvPath = `${tmpDir}/${p}-${queryRunKey}.csv`;
+                // const csvPath = `${tmpDir}/${p}-${queryRunKey}.csv`;
+                const csvPath = `${tmpDir}/${projectName}.csv`;
                 fs.writeFileSync(csvPath, csv);
 
                 // workspace.openTextDocument(csvPath).then(doc => {

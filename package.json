@@ -69,6 +69,7 @@
     },
     "dependencies": {
         "fs-extra": "^6.0.1",
+        "turndown": "^4.0.2",
         "eslint": "^4.19.1"
     },
     "extensionDependencies": [

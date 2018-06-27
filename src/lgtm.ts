@@ -61,13 +61,35 @@ type CheckErrorsResponse = CheckErrorsSuccess;
 interface AutoCompleteRequest {
     distribution: string;
     language: string;
-    offset: string;
+    offset: number;
     queryPath: string;
     queryText: string;
 }
 
 interface AutoCompleteResponse {
-    data: any
+    data: any;
+}
+
+interface ToolTipResponse {
+    data: {
+        tooltip: string;
+        jumpable: boolean;
+    };
+}
+
+export function toolTip(req: AutoCompleteRequest, errorHandler: ErrorHandler, okHandler: (body: ToolTipResponse) => void) {
+    request.post("https://lgtm.com/qlapi-fast/tooltip", {
+        json: req
+    }, (error, response, body) => {
+        LgtmService.reply(
+            'tooltip',
+            error,
+            response,
+            body,
+            errorHandler,
+            okHandler
+        );
+    });
 }
 
 export function autoComplete(req: AutoCompleteRequest, errorHandler: ErrorHandler, okHandler: (body: AutoCompleteResponse) => void) {
@@ -75,7 +97,7 @@ export function autoComplete(req: AutoCompleteRequest, errorHandler: ErrorHandle
         json: req
     }, (error, response, body) => {
         LgtmService.reply(
-            'checkErrors',
+            'autoComplete',
             error,
             response,
             body,
