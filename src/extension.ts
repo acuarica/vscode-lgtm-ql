@@ -11,8 +11,8 @@ var TurndownService = require('turndown');
 export function activate(context: vscode.ExtensionContext) {
     console.log('Extension "vscode-lgtm-ql" is active');
 
-    let lgtm = new LgtmService();
-    let commands = new LgtmCommands(lgtm);
+    const lgtm = new LgtmService();
+    const commands = new LgtmCommands(lgtm);
 
     context.subscriptions.push(vscode.commands.registerCommand('extension.checkErrors', () => {
         commands.withQlActiveEditor(doc => {

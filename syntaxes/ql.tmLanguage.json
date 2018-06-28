@@ -17,7 +17,7 @@
 			"patterns": [
 				{
 					"name": "keyword.control.ql",
-					"match": "\\b(import|predicate|result|class|extends|this|super|override|abstract|from|where|select|as|order|by|and|or|not|implies|if|then|else|exists|forall|forex|instanceof|true|false)\\b"
+					"match": "\\b(import|predicate|result|module|class|extends|this|super|override|abstract|final|from|where|select|as|order|by|and|or|not|implies|if|then|else|exists|forall|forex|instanceof|true|false)\\b"
 				}
 			]
 		},
