@@ -14,6 +14,26 @@ export function activate(context: vscode.ExtensionContext) {
     const lgtm = new LgtmService();
     const commands = new LgtmCommands(lgtm);
 
+    // // 👍 formatter implemented using API
+    // context.subscriptions.push(languages.registerDocumentFormattingEditProvider('ql', {
+    //     provideDocumentFormattingEdits(doc: TextDocument): TextEdit[] {
+    //         const edits = [];
+    //         let tabs = 0;
+    //         for (let i = 0; i < doc.lineCount; i++) {
+    //             const line = doc.lineAt(i);
+    //             if (line.text.endsWith('{')) { 
+    //                 edits.push(TextEdit.insert(line.range.start, 'HOLAA\n'));
+    //             }
+    //         }
+
+    //         const firstLine = doc.lineAt(1 - 1);
+    //         edits.push(TextEdit.insert(firstLine.range.start, 'HOLAA\n'));
+    //         edits.push(TextEdit.insert(doc.lineAt(7 - 1).range.start, 'CIAOOO\n'));
+    //         edits.push(TextEdit.insert(doc.lineAt(11 - 1).range.start, 'HELLO\n'));
+    //         return edits;
+    //     }
+    // }));
+
     context.subscriptions.push(vscode.commands.registerCommand('extension.checkErrors', () => {
         commands.withQlActiveEditor(doc => {
             commands.checkInit().then(() => {
@@ -46,9 +66,18 @@ export function activate(context: vscode.ExtensionContext) {
         });
     }));
 
+    let conf = workspace.getConfiguration('lgtm');
+    console.info(JSON.stringify(conf));
     const t: { timer: NodeJS.Timer | null } = { timer: null };
     context.subscriptions.push(workspace.onDidChangeTextDocument(e => {
         console.log(`onChange: ${JSON.stringify(e.contentChanges)}`);
+        let conf = workspace.getConfiguration('lgtm');
+        var checkOnChange = conf.get('checkErrorsOnChange');
+        console.info(checkOnChange);
+
+        if (!checkOnChange) {
+            return;
+        }
 
         if (t.timer !== null) {
             clearTimeout(t.timer);

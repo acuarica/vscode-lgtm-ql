@@ -49,7 +49,17 @@
                 "command": "extension.runQuery",
                 "title": "Run QL Query on lgtm.com"
             }
-        ]
+        ],
+        "configuration": {
+            "title": "lgtm.com QL Setting",
+            "properties": {
+                "lgtm.checkErrorsOnChange": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Check errors on lgtm.com while editing if true."
+                }
+            }
+        }
     },
     "scripts": {
         "vscode:prepublish": "npm run compile",
