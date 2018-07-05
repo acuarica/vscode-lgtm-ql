@@ -5,7 +5,7 @@ import { StatusBarItem, window, StatusBarAlignment, TextDocument, Diagnostic, la
 import { LgtmService, QueryRunProgressKeys, Project, toolTip } from './lgtm';
 import fs = require('fs-extra');
 import * as date from './date';
-// import { resolve } from 'path';
+import path = require('path');
 var TurndownService = require('turndown');
 
 export function activate(context: vscode.ExtensionContext) {
@@ -252,6 +252,7 @@ class LgtmCommands {
 
     runQuery(doc: TextDocument) {
         const content = doc.getText();
+        const title = path.basename(doc.fileName, ".ql");
         const args = LgtmCommands.parseQueryArgs(content.split("\n", 2));
         const lang = args["lang"];
         const projectKeys = args["projectKeys"];
@@ -288,7 +289,7 @@ class LgtmCommands {
                     //     <div id='p${r.key}'></div>`;
 
                     if (r.done) {
-                        this.showRunResults(r.key, queryKeyFolder, ps.data.fullProjects[r.projectKey], r.snapshotKey);
+                        this.showRunResults(r.key, queryKeyFolder, ps.data.fullProjects[r.projectKey], r.snapshotKey, title);
                     }
                 });
 
@@ -302,7 +303,8 @@ class LgtmCommands {
                             queryRunKey,
                             queryKeyFolder,
                             mapByQueryKey[queryRunKey].project,
-                            mapByQueryKey[queryRunKey].snapshotKey
+                            mapByQueryKey[queryRunKey].snapshotKey,
+                            title
                         );
                     });
                 } else {
@@ -312,7 +314,7 @@ class LgtmCommands {
         });
     }
 
-    public showRunResults(queryRunKey: string, queryKeyDir: string, project: Project, snapshotKey: string) {
+    public showRunResults(queryRunKey: string, queryKeyDir: string, project: Project, snapshotKey: string, title: string) {
         const url = "https://lgtm.com/projects";
         this.lgtm.getCustomQueryRunResults(0, 3, false, queryRunKey, this.handleError, body => {
             let csv = body.data.metadata.columns.join(",") + "\n";
@@ -328,10 +330,13 @@ class LgtmCommands {
 
             const projectName = project.displayName.replace('/', '-');
             let tmpDir = workspace.rootPath;
+            const currentPath = workspace.rootPath + "/.lgtm/current-" + title;
             if (tmpDir !== undefined) {
                 tmpDir += "/.lgtm/" + queryKeyDir;
                 if (!fs.existsSync(tmpDir)) {
                     fs.ensureDirSync(tmpDir);
+                    fs.removeSync(currentPath);
+                    fs.ensureSymlinkSync(tmpDir, currentPath);
                 }
                 // const csvPath = `${tmpDir}/${p}-${queryRunKey}.csv`;
                 const csvPath = `${tmpDir}/${projectName}.csv`;
