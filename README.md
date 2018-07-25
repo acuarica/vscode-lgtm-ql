@@ -1,31 +1,44 @@
 
-# vscode-lgtm-ql README
+# vscode-lgtm-ql (lgtm.com QL extension for VSCode)
+
+The platform https://lgtm.com provides the web interface to run QL queries.
+See:
+
+> https://lgtm.com/query
+
+It is the perfect place to start and learn the QL language.
+When the size of your QL scripts get more complex, the web interface lack some IDE-like/offline features, as control version.
+when developing more complex scripts...
+
+This extension allows the user to run QL queries directly from VS Code.
+Moreover, it provides an IDE-like experience when editing QL scripts.
+It uses the REST services provided by lgtm.com,
+to check and provide hover descriptions of symbols.
+
+Before building the extension, we tried to automatize running the QL queries using python scripts.
+
+Parsing doc comments to extract description.
+Parser for QL.
 
 Extension for lgtm service QL.
 It allows to run scripts directly from VSCode.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
-
-For example if there is an image subfolder under your extension project workspace:
-
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+* Check errors, *i.e.*, linting
+* Running queries
+* Fetching the results
+* See definitions of predicates and classes
 
 ## Requirements
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+This extension needs an Internet connection to run queries on the lgtm.com platform.
 
 ## Extension Settings
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
 This extension contributes the following settings:
 
-* `myExtension.enable`: enable/disable this extension
-* `myExtension.thing`: set to `blah` to do something
+* `lgtm.checkErrorsOnChange`: Check errors on lgtm.com while editing if true.
 
 ## Known Issues
 
@@ -56,5 +69,3 @@ Added features X, Y, and Z.
 * Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux)
 * Toggle preview (`Shift+CMD+V` on macOS or `Shift+Ctrl+V` on Windows and Linux)
 * Press `Ctrl+Space` (Windows, Linux) or `Cmd+Space` (macOS) to see a list of Markdown snippets
-
-**Enjoy!**
